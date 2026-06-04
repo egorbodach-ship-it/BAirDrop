@@ -41,6 +41,7 @@ public final class BAirDrop extends JavaPlugin {
 
     public static Summoner summoner = new Summoner();
     public static GlobalTimer globalTimer;
+    public static BAirDropScheduler scheduler;
     public static HashMap<String, CustomCraft> crafts = new HashMap<>();
     public static Compass compass;
     public static LogLevel logLevel;
@@ -129,6 +130,11 @@ public final class BAirDrop extends JavaPlugin {
         if (BAirDrop.getInstance().getConfig().getBoolean("global-time.enable")) {
             globalTimer = new GlobalTimer((BAirDrop.getInstance().getConfig().getInt("global-time.time") * 60));
         }
+
+        scheduler = new BAirDropScheduler();
+        scheduler.load();
+        scheduler.start();
+
         if (logLevel == LogLevel.HARD) {
             new BukkitRunnable() {
                 @Override
@@ -178,6 +184,7 @@ public final class BAirDrop extends JavaPlugin {
             airDrop.schematicsUndo();
             RegionManager.removeRegion(airDrop);
         }
+        if (scheduler != null) scheduler.stop();
         GeneratorLoc.save();
         CustomCraft.unloadCrafts();
 
@@ -234,10 +241,14 @@ public final class BAirDrop extends JavaPlugin {
         for (String id : ids) {
             airDrops.get(id).registerAllSignedObservers();
         }
+
+        if (scheduler != null) scheduler.stop();
+        scheduler = new BAirDropScheduler();
+        scheduler.load();
+        scheduler.start();
     }
 
     public static ProtocolManager getProtocolManager() {
         return protocolManager;
     }
 }
-
