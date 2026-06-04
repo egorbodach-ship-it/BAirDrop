@@ -1,0 +1,32 @@
+# === Встроенный планировщик BAirDrop ===
+# groups    — пулы аирдропов и веса для взвешенного рандома
+# schedules — авто-запуск группы по таймеру (без CommandTimer)
+#
+# Вес = относительный шанс. Чем больше число — тем чаще выпадает ярус.
+# Запуск вручную:  /bair start <группа> random
+# Плейсхолдеры:    %bairdrop_schedule_<группа>_format%  и  %bairdrop_schedule_<группа>%
+
+groups:
+  desert:
+    members:
+      pesok_common: 10
+      pesok_rare: 6
+      pesok_epic: 3
+      pesok_legend: 1
+  nether:
+    members:
+      ad: 1
+      # когда добавишь ярусы незера — просто допиши их сюда:
+      # ad_rare: 6
+      # ad_epic: 3
+      # ad_legend: 1
+
+schedules:
+  desert:
+    enabled: true
+    interval: 3600   # секунд (3600 = 1 час)
+    min-players: 1
+  nether:
+    enabled: true
+    interval: 3600
+    min-players: 1
