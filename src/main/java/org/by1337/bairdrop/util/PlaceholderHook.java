@@ -27,56 +27,9 @@ public class PlaceholderHook extends me.clip.placeholderapi.expansion.Placeholde
     }
 
     @Override
-    public String onRequest(OfflinePlayer player, String params) {// %bairdrop_test% = test %bairdrop_time_to_open_<air id>%
-        if (params.contains("is_start_")) { //%bairdrop_is_start_<air id>%
-            String[] args = params.split("_");
-            if(args.length != 3) {
-                return "error";
-            }
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[2], null);
-            if(airDrop == null) {
-                return "error";
-            }
-            return "" + airDrop.isAirDropStarted();
-        }
-        if (params.contains("is_locked_")) { //%bairdrop_is_locked_<air id>%
-            String[] args = params.split("_");
-            if(args.length != 3) {
-                return "error";
-            }
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[2], null);
-            if(airDrop == null) {
-                return "error";
-            }
-            if(!airDrop.isAirDropStarted()) {
-                return BAirDrop.getConfigMessage().getMessage("air-no-respawn")
-                        .replace("{id}", airDrop.getId());
-            }
-            return "" + airDrop.isAirDropLocked();
-        }
-        if (params.contains("is_activated_")) { //%bairdrop_is_activated_<air id>%
-            String[] args = params.split("_");
-            if(args.length != 3) {
-                return "error";
-            }
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[2], null);
-            if(airDrop == null) {
-                return "error";
-            }
-            if(!airDrop.isAirDropStarted()) {
-                return BAirDrop.getConfigMessage().getMessage("air-no-respawn")
-                        .replace("{id}", airDrop.getId());
-            }
-            return "" + airDrop.isActivated();
-        }
-        if (params.contains("time_to_open_")) { //%bairdrop_time_to_open_<air id>%
-            String[] args = params.split("_");
-            if (args.length != 4) return "error";
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[3], null);
-            if (airDrop == null) return "error";
-            return airDrop.getTimeToOpen() + "";
-        }
-        if (params.equals("time_start")) { //%bairdrop_time_start%
+    public String onRequest(OfflinePlayer player, String params) {
+        // --- глобальные / точные плейсхолдеры ---
+        if (params.equals("time_start")) { // %bairdrop_time_start%
             if (BAirDrop.globalTimer == null)
                 return AirManager.getTimeToNextAirdrop() + "";
             int time = 0;
@@ -85,7 +38,7 @@ public class PlaceholderHook extends me.clip.placeholderapi.expansion.Placeholde
                 time += BAirDrop.globalTimer.getAir().getTimeToStart();
             return time + "";
         }
-        if (params.equals("time_start_format")) { //%bairdrop_time_start_format%
+        if (params.equals("time_start_format")) { // %bairdrop_time_start_format%
             if (BAirDrop.globalTimer == null)
                 return AirManager.getFormat(AirManager.getTimeToNextAirdrop());
             int time = 0;
@@ -94,7 +47,7 @@ public class PlaceholderHook extends me.clip.placeholderapi.expansion.Placeholde
                 time += BAirDrop.globalTimer.getAir().getTimeToStart();
             return AirManager.getFormat(time);
         }
-        if (params.equals("near")) { //%bairdrop_near%
+        if (params.equals("near")) { // %bairdrop_near%
             if (player == null) return "";
             AirDrop airDrop = null;
             int dist = 0;
@@ -110,85 +63,94 @@ public class PlaceholderHook extends me.clip.placeholderapi.expansion.Placeholde
                 return BAirDrop.getConfigMessage().getMessage("air-near-none");
             return Message.messageBuilder(airDrop.replaceInternalPlaceholder(BAirDrop.getConfigMessage().getMessage("air-near").replace("{dist}", dist + "")));
         }
-        if (params.contains("time_to_end_format_")) { //%bairdrop_time_to_end_format_<air id>%
-            String[] args = params.split("_");
-            if (args.length != 5) return "error";
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[4], null);
-            if (airDrop == null) return "error";
-            return AirManager.getFormat(airDrop.getTimeStop());
+
+        // --- расписание встроенного планировщика ---
+        // %bairdrop_schedule_<group>%        -> секунды до запуска
+        // %bairdrop_schedule_<group>_format% -> HH:MM:SS
+        if (params.startsWith("schedule_")) {
+            String rest = params.substring("schedule_".length());
+            boolean format = false;
+            if (rest.endsWith("_format")) {
+                format = true;
+                rest = rest.substring(0, rest.length() - "_format".length());
+            }
+            if (BAirDrop.scheduler == null) return "error";
+            if (!BAirDrop.scheduler.hasGroup(rest)) return "error";
+            return format ? BAirDrop.scheduler.getFormat(rest)
+                    : String.valueOf(BAirDrop.scheduler.getSecondsUntil(rest));
         }
-        if (params.contains("time_to_start_format_")) { //%bairdrop_time_to_start_format_<air_id>%
-            String[] args = params.split("_");
-            if (args.length != 5) return "error";
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[4], null);
+
+        // --- плейсхолдеры по id (поддержка '_' в id) ---
+        AirDrop airDrop;
+        if (params.startsWith("is_start_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("is_start_".length()));
             if (airDrop == null) return "error";
-            return  AirManager.getFormat(airDrop.getTimeToStart());
+            return "" + airDrop.isAirDropStarted();
         }
-        if (params.contains("time_to_start_new_format_")) { //%bairdrop_time_to_start_new_format_<air_id>%
-            String[] args = params.split("_");
-            if (args.length != 5) return "error";
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[4], null);
+        if (params.startsWith("is_locked_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("is_locked_".length()));
             if (airDrop == null) return "error";
-            return  AirManager.formatTime(airDrop.getTimeToStart());
+            if (!airDrop.isAirDropStarted())
+                return BAirDrop.getConfigMessage().getMessage("air-no-respawn").replace("{id}", airDrop.getId());
+            return "" + airDrop.isAirDropLocked();
         }
-        if (params.contains("time_to_start_")) { //%bairdrop_time_to_start_<air_id>%
-            String[] args = params.split("_");
-            if (args.length != 4) return "error";
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[3], null);
+        if (params.startsWith("is_activated_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("is_activated_".length()));
             if (airDrop == null) return "error";
-            return airDrop.getTimeToStart() + "";
+            if (!airDrop.isAirDropStarted())
+                return BAirDrop.getConfigMessage().getMessage("air-no-respawn").replace("{id}", airDrop.getId());
+            return "" + airDrop.isActivated();
         }
-        if (params.contains("time_to_end_")) { //%bairdrop_time_to_end_<air id>%
-            String[] args = params.split("_");
-            if (args.length != 4) return "error";
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[3], null);
-            if (airDrop == null) return "error";
-            return airDrop.getTimeStop() + "";
-        }
-        if (params.contains("air_name_")) { //%bairdrop_air_name_<air id>%
-            String[] args = params.split("_");
-            if (args.length != 3) return "error";
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[2], null);
+        if (params.startsWith("air_name_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("air_name_".length()));
             if (airDrop == null) return "error";
             return airDrop.getDisplayName();
         }
-        if (params.contains("x_")) { //%bairdrop_x_<air id>%
-            String[] args = params.split("_");
-            if (args.length != 2) return "error";
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[1], null);
+        if (params.startsWith("time_to_open_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("time_to_open_".length()));
             if (airDrop == null) return "error";
-
-            if (airDrop.getAnyLoc() == null) {
-                return "?";
-            } else {
-                return String.valueOf(airDrop.getAnyLoc().getX()).replace(".0", "");
-            }
-
+            return airDrop.getTimeToOpen() + "";
         }
-        if (params.contains("y_")) { //%bairdrop_y_<air id>%
-            String[] args = params.split("_");
-            if (args.length != 2) return "error";
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[1], null);
+        if (params.startsWith("time_to_end_format_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("time_to_end_format_".length()));
             if (airDrop == null) return "error";
-            if (airDrop.getAnyLoc() == null) {
-                return "?";
-            } else {
-                return String.valueOf(airDrop.getAnyLoc().getY()).replace(".0", "");
-            }
+            return AirManager.getFormat(airDrop.getTimeStop());
         }
-        if (params.contains("z_")) { //%bairdrop_z_<air id>%
-            String[] args = params.split("_");
-            if (args.length != 2) return "error";
-            AirDrop airDrop = BAirDrop.airDrops.getOrDefault(args[1], null);
+        if (params.startsWith("time_to_start_new_format_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("time_to_start_new_format_".length()));
             if (airDrop == null) return "error";
-            if (airDrop.getAnyLoc() == null) {
-                return "?";
-            } else {
-                return String.valueOf(airDrop.getAnyLoc().getZ()).replace(".0", "");
-            }
+            return AirManager.formatTime(airDrop.getTimeToStart());
+        }
+        if (params.startsWith("time_to_start_format_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("time_to_start_format_".length()));
+            if (airDrop == null) return "error";
+            return AirManager.getFormat(airDrop.getTimeToStart());
+        }
+        if (params.startsWith("time_to_end_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("time_to_end_".length()));
+            if (airDrop == null) return "error";
+            return airDrop.getTimeStop() + "";
+        }
+        if (params.startsWith("time_to_start_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("time_to_start_".length()));
+            if (airDrop == null) return "error";
+            return airDrop.getTimeToStart() + "";
+        }
+        if (params.startsWith("x_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("x_".length()));
+            if (airDrop == null) return "error";
+            return airDrop.getAnyLoc() == null ? "?" : String.valueOf(airDrop.getAnyLoc().getX()).replace(".0", "");
+        }
+        if (params.startsWith("y_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("y_".length()));
+            if (airDrop == null) return "error";
+            return airDrop.getAnyLoc() == null ? "?" : String.valueOf(airDrop.getAnyLoc().getY()).replace(".0", "");
+        }
+        if (params.startsWith("z_")) {
+            airDrop = BAirDrop.airDrops.get(params.substring("z_".length()));
+            if (airDrop == null) return "error";
+            return airDrop.getAnyLoc() == null ? "?" : String.valueOf(airDrop.getAnyLoc().getZ()).replace(".0", "");
         }
         return null;
     }
-
-
 }
